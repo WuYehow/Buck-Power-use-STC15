@@ -1,6 +1,7 @@
 # Buck-Power-use-STC15
 A power source use STC15 control
-## 这是我参见成都理工大学2018年高等电子设计大赛电源组时的代码
+
+#### 这是我参见成都理工大学2018年高等电子设计大赛电源组时的代码
 
 其中pwm输出为P3.6
 
