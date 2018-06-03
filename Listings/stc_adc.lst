@@ -1,0 +1,155 @@
+C51 COMPILER V9.56.0.0   STC_ADC                                                           06/03/2018 22:40:57 PAGE 1   
+
+
+C51 COMPILER V9.56.0.0, COMPILATION OF MODULE STC_ADC
+OBJECT MODULE PLACED IN .\Objects\stc_adc.obj
+COMPILER INVOKED BY: C:\Program Files (x86)\keil\keil_51\C51\BIN\C51.EXE stc_adc.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECT
+                    -EXTEND PRINT(.\Listings\stc_adc.lst) TABS(2) OBJECT(.\Objects\stc_adc.obj)
+
+line level    source
+
+   1          #include "stc_adc.h" //MCU:stc15w404as
+   2          
+   3          //全局变量
+   4          unsigned int ADC_voltage_BandGap;       //BandGap预储存校准值，单位毫伏
+   5          
+   6          //读取BandGap电压值
+   7          void ADC_ReadBandGapVoltage()
+   8          {
+   9   1        //unsigned char code *cptr;           //定义ROM(代码)区指针
+  10   1        unsigned char idata *iptr;       //定义RAM(内存)区指针
+  11   1      /*
+  12   1        //下面的方法需要在下载式勾选"在ID号前添加重要测试参数"选项,才可在程序中获取此参数
+  13   1        cptr = ID_ADDR_BANDGAP_ROM;           //从程序区读取BandGap电压值(单位:毫伏mV)
+  14   1        ADC_voltage_BandGap = *cptr++;
+  15   1        ADC_voltage_BandGap <<= 8;
+  16   1        ADC_voltage_BandGap += *cptr;
+  17   1      */
+  18   1      
+  19   1        iptr = ID_ADDR_BANDGAP_RAM;           //从内存区读取BandGap电压值(单位:毫伏mV)，貌似不推荐
+  20   1        ADC_voltage_BandGap =* iptr++;            //两种方法结果一样，
+  21   1        ADC_voltage_BandGap <<= 8;                //下面的这种方法不需要
+  22   1        ADC_voltage_BandGap += *iptr;
+  23   1      
+  24   1      }
+  25          
+  26          //读取ADC结果
+  27          unsigned int ADC_GetResult(unsigned char channel)
+  28          {
+  29   1        unsigned int ADC_10BIT_RES;
+  30   1      
+  31   1        ADC_CONTR = ADC_POWER | ADC_SPEEDLL | channel | ADC_START;
+  32   1        _nop_();                          //等待4个NOP
+  33   1        _nop_();
+  34   1        _nop_();
+  35   1        _nop_();
+  36   1        while (!(ADC_CONTR & ADC_FLAG));  //等待ADC转换完成
+  37   1        ADC_CONTR &= ~ADC_FLAG;           //关闭 ADC
+  38   1        ADC_10BIT_RES = ADC_RES;          //得到高8位
+  39   1        ADC_10BIT_RES <<= 2;
+  40   1        ADC_10BIT_RES |= ADC_RESL;        //得到低2位
+  41   1        return ADC_10BIT_RES;             //返回ADC结果
+  42   1      }
+  43          
+  44          //读取第九通道ADC结果
+  45          unsigned int ADC_GetResult_BandGap()
+  46          {
+  47   1        unsigned int ADC_res_BandGap;
+  48   1      
+  49   1        ADC_RES = 0;                     //清除结果寄存器
+  50   1        P1ASF = 0x00;                    //设置读第九通道
+  51   1        ADC_GetResult(0);                //测BandGap时，调用此函数时通道数只能填0
+  52   1        ADC_GetResult(0);                //读三次获得稳定
+  53   1        ADC_res_BandGap = ADC_GetResult(0);
+  54   1        return ADC_res_BandGap;
+C51 COMPILER V9.56.0.0   STC_ADC                                                           06/03/2018 22:40:57 PAGE 2   
+
+  55   1      }
+  56          
+  57          //计算ADC结果
+  58          unsigned int ADC_GetVoltage(unsigned char channel)
+  59          {
+  60   1        unsigned int ADC_res,       //测量设定通道adc值
+  61   1                     ADC_res_buf = 0,
+  62   1                     ADC_res_min = 1024,
+  63   1                     ADC_res_max = 0,
+  64   1                     ADC_res_BandGap,
+  65   1                     ADC_res_buf_BandGap = 0,
+  66   1                     ADC_res_min_BandGap = 1024,
+  67   1                     ADC_res_max_BandGap = 0,
+  68   1                     ADC_res_num,
+  69   1                     ADC_voltage;          //设定通道电压值，单位毫伏
+  70   1               float ADC_res_ave,
+  71   1                     ADC_BandGap_ave;
+  72   1        unsigned char i;
+  73   1      
+  74   1        if(channel < 8 && channel >= 0)
+  75   1        {
+  76   2          //测量设定通道adc值
+  77   2          ADC_RES = 0;                      //清除结果寄存器
+  78   2      
+  79   2          P1ASF = 0xff;                     //设置P1口为AD口
+  80   2        }
+  81   1          //去极值平均滤波算法
+  82   1        for(i = 0;i < FILTER_COUT;i++)
+  83   1        {
+  84   2          if(channel < 8 && channel >= 0)
+  85   2          { 
+  86   3            ADC_res = ADC_GetResult(channel);
+  87   3            if(ADC_res_min > ADC_res)
+  88   3              ADC_res_min = ADC_res;
+  89   3            if(ADC_res_max < ADC_res)
+  90   3              ADC_res_max = ADC_res;
+  91   3            ADC_res_buf += ADC_res;
+  92   3          }
+  93   2          ADC_res_BandGap = ADC_GetResult_BandGap();
+  94   2          if(ADC_res_min_BandGap > ADC_res_BandGap)
+  95   2            ADC_res_min_BandGap = ADC_res_BandGap;
+  96   2          if(ADC_res_max_BandGap < ADC_res_BandGap)
+  97   2            ADC_res_max_BandGap = ADC_res_BandGap;
+  98   2          ADC_res_buf_BandGap += ADC_res_BandGap;
+  99   2        }
+ 100   1        ADC_res_num = FILTER_COUT - 2;
+ 101   1        if(channel < 8 && channel >= 0)
+ 102   1        {
+ 103   2          ADC_BandGap_ave = (float)(ADC_res_buf_BandGap - ADC_res_min_BandGap - ADC_res_max_BandGap) / ADC_res_n
+             -um;
+ 104   2          ADC_res_ave = (float)(ADC_res_buf - ADC_res_min - ADC_res_max) / ADC_res_num;
+ 105   2          ADC_voltage = (float)ADC_voltage_BandGap * ADC_res_ave / ADC_BandGap_ave;
+ 106   2        }
+ 107   1        else
+ 108   1        {
+ 109   2          ADC_BandGap_ave = (float)(ADC_res_buf_BandGap - ADC_res_min_BandGap - ADC_res_max_BandGap) / ADC_res_n
+             -um;
+ 110   2          ADC_voltage = (float)ADC_voltage_BandGap * 1023 / ADC_BandGap_ave;
+ 111   2        }
+ 112   1          return ADC_voltage;
+ 113   1      }
+ 114          
+C51 COMPILER V9.56.0.0   STC_ADC                                                           06/03/2018 22:40:57 PAGE 3   
+
+ 115          //初始化ADC
+ 116          void InitADC()
+ 117          {
+ 118   1        unsigned int i;
+ 119   1      
+ 120   1        P1ASF = 0xff;                   //设置P1口为AD口
+ 121   1        ADC_RES = 0;                    //清除结果寄存器
+ 122   1        ADC_CONTR = ADC_POWER | ADC_SPEEDLL;
+ 123   1        for(i = 10000; i > 0; i--);     //ADC上电并延时
+ 124   1        ADC_ReadBandGapVoltage();       //读取BandGap预储存校准值
+ 125   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    555    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =      2      26
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

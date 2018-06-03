@@ -1,0 +1,5 @@
+".\Objects\STARTUP.obj",
+".\Objects\main.obj",
+".\Objects\stc_adc.obj" 
+TO ".\Objects\buck电源" 
+PRINT(".\Listings\buck电源.m51") RAMSIZE(256) 
